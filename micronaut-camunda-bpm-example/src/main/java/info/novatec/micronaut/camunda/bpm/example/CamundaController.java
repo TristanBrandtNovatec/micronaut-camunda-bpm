@@ -1,13 +1,12 @@
 package info.novatec.micronaut.camunda.bpm.example;
 
 import io.micronaut.http.MediaType;
-import io.micronaut.http.annotation.Controller;
-import io.micronaut.http.annotation.Get;
-import io.micronaut.http.annotation.Produces;
+import io.micronaut.http.annotation.*;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.RepositoryService;
+import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.repository.ResourceDefinition;
 
 import java.util.stream.Collectors;
@@ -19,9 +18,12 @@ public class CamundaController {
 
     private final RepositoryService repositoryService;
 
-    public CamundaController(ProcessEngine processEngine, RepositoryService repositoryService) {
+    private final RuntimeService runtimeService;
+
+    public CamundaController(ProcessEngine processEngine, RepositoryService repositoryService, RuntimeService runtimeService) {
         this.processEngine = processEngine;
         this.repositoryService = repositoryService;
+        this.runtimeService = runtimeService;
     }
 
     @Get("/name")
@@ -38,5 +40,36 @@ public class CamundaController {
         return repositoryService.createProcessDefinitionQuery().list().stream()
                 .map(ResourceDefinition::getKey)
                 .collect(Collectors.joining());
+    }
+
+    @Post("/start/{key}/{id}")
+    @Produces(MediaType.TEXT_PLAIN)
+    @ExecuteOn(TaskExecutors.IO)
+    public String start(@PathVariable String key, @PathVariable String id) {
+        return runtimeService.startProcessInstanceByKey(key, id).getId();
+    }
+
+    @Post("/message/{id}/{message}")
+    @Produces(MediaType.TEXT_PLAIN)
+    @ExecuteOn(TaskExecutors.IO)
+    public String correlate(@PathVariable String id, @PathVariable String message) {
+        try {
+            runtimeService.correlateMessage(message, id);
+            return "Success";
+        } catch (Exception e) {
+            return "Error";
+        }
+    }
+
+    @Post("/signal/{message}")
+    @Produces(MediaType.TEXT_PLAIN)
+    @ExecuteOn(TaskExecutors.IO)
+    public String signal(@PathVariable String message) {
+        try {
+            runtimeService.createSignalEvent(message).send();
+            return "Success";
+        } catch (Exception e) {
+            return "Error";
+        }
     }
 }
